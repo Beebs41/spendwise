@@ -6,9 +6,9 @@
 
 ### App Name (Max 30 characters)
 ```text
-SpendWise: Expense Tracker
+SpendWise: Private Money Log
 ```
-*(Character count: 26 / 30)*
+*(Character count: 28 / 30)*
 
 ---
 
