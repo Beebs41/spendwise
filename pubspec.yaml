@@ -1,0 +1,62 @@
+name: spendwise
+description: "SpendWise — Personal Expense Tracker & Budgeting Tool"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_bloc: ^9.1.0
+  equatable: ^2.0.7
+
+  # Database
+  drift: ^2.27.0
+  sqlite3_flutter_libs: ^0.5.32
+  path_provider: ^2.1.6
+  path: ^1.9.1
+
+  # Navigation
+  go_router: ^15.1.2
+
+  # Charts
+  fl_chart: ^0.70.2
+
+  # UI & Theming
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.17
+  shimmer: ^3.0.0
+  gap: ^3.0.1
+  animate_do: ^3.3.4
+
+  # Utilities
+  intl: ^0.20.2
+  uuid: ^4.5.1
+  share_plus: ^11.0.0
+  url_launcher: ^6.3.1
+  local_auth: ^2.3.0
+
+  # Export
+  csv: ^6.0.0
+
+  # Media & Contacts
+  image_picker: ^1.1.2
+  flutter_native_contact_picker: ^0.0.12
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Drift code generation
+  drift_dev: ^2.27.0
+  build_runner: ^2.4.15
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

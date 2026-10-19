@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpendWise — Privacy Policy</title>
+  <style>
+    :root {
+      --bg: #0F172A;
+      --card: #1E293B;
+      --accent: #2ECC71;
+      --text: #F8FAFC;
+      --muted: #94A3B8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(46, 204, 113, 0.15);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 28px; margin-bottom: 8px; color: var(--text); }
+    .updated { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    h2 { font-size: 19px; color: var(--accent); margin: 28px 0 12px; }
+    p, li { color: #CBD5E1; font-size: 15px; margin-bottom: 12px; }
+    ul { margin-left: 20px; margin-bottom: 16px; }
+    .highlight-box {
+      background: rgba(46, 204, 113, 0.08);
+      border-left: 4px solid var(--accent);
+      padding: 16px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    footer {
+      margin-top: 36px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">100% Offline & Private</span>
+    <h1>Privacy Policy for SpendWise</h1>
+    <div class="updated">Effective Date: October 17, 2026</div>
+
+    <div class="highlight-box">
+      <strong>Key Summary:</strong> SpendWise is a 100% offline-first personal expense tracker. We do not collect, transmit, share, or monetize any of your personal, financial, or device data. All information remains on your device.
+    </div>
+
+    <h2>1. Information We Collect</h2>
+    <p><strong>We collect zero personal data.</strong> SpendWise operates entirely offline. When you input transactions, budgets, debt records, or custom categories, all data is stored exclusively in a local SQLite database on your mobile device.</p>
+    <ul>
+      <li>No account creation or registration is required.</li>
+      <li>No personal or financial data is ever transmitted to external servers.</li>
+      <li>We do not operate backend servers that store your transactions.</li>
+    </ul>
+
+    <h2>2. Permissions & How They Are Used</h2>
+    <p>SpendWise requests minimal Android permissions solely to enable user-initiated device features:</p>
+    <ul>
+      <li><strong>Biometrics / Fingerprint:</strong> Used locally on your device via Android BiometricPrompt to lock and unlock the app. Your biometric data never leaves your device's hardware security module (TEE).</li>
+      <li><strong>Contact Picker:</strong> Used when adding debt or loan records. The app utilizes the native Android system intent (ACTION_PICK), allowing you to pick a single contact from your address book. SpendWise does NOT read or scan your address book in the background.</li>
+      <li><strong>Storage / File Access:</strong> Used exclusively when you explicitly choose to export your transactions to a CSV file or share your backup.</li>
+    </ul>
+
+    <h2>3. Third-Party Services & Analytics</h2>
+    <p>SpendWise contains <strong>no third-party analytics</strong> (such as Google Analytics or Firebase Analytics), <strong>no advertising SDKs</strong>, and <strong>no tracking cookies</strong>. We believe your financial data belongs exclusively to you.</p>
+
+    <h2>4. Data Retention and Deletion</h2>
+    <p>Because all data is stored on your device, you have total control over it at all times:</p>
+    <ul>
+      <li>You can delete transactions, debts, or categories at any time from within the app.</li>
+      <li>Uninstalling the SpendWise application permanently removes all stored data from your device.</li>
+    </ul>
+
+    <h2>5. Children's Privacy</h2>
+    <p>SpendWise does not knowingly collect or solicit personal information from children under 13. Since no personal data is collected or transmitted by the app, it complies with standard child privacy regulations (COPPA / GDPR-K).</p>
+
+    <h2>6. Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy from time to time. Any changes will be posted on this page with an updated effective date.</p>
+
+    <h2>7. Contact Us</h2>
+    <p>If you have any questions, concerns, or feedback regarding this Privacy Policy or SpendWise, please contact us at: <a href="mailto:shabeebbinaslam@gmail.com" style="color: var(--accent); text-decoration: none; font-weight: 600;">shabeebbinaslam@gmail.com</a></p>
+
+    <footer>
+      &copy; 2026 SpendWise. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>
