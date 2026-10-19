@@ -78,12 +78,12 @@ Take charge of your personal finances today. Download SpendWise and build lastin
 | :--- | :--- | :--- |
 | **App Icon** | 512 × 512 px PNG (32-bit, max 1MB) | `play_store_assets/app_icon_512x512.png` |
 | **Feature Graphic** | 1024 × 500 px PNG/JPEG (max 15MB) | `play_store_assets/feature_graphic_1024x500.png` |
-| **Screenshot 1** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_1_dashboard.png` |
-| **Screenshot 2** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_2_budgets.jpg` |
-| **Screenshot 3** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_3_savings.jpg` |
-| **Screenshot 4** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_4_categories.png` |
-| **Screenshot 5** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_5_multi_currency.png` |
-| **Screenshot 6** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_6_activity_reports.jpg` |
+| **Screenshot 1** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_1_dashboard.png` (Home Overview) |
+| **Screenshot 2** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_2_activity.png` (Transactions & Search) |
+| **Screenshot 3** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_3_budgets.png` (Monthly Budgets & Limits) |
+| **Screenshot 4** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_4_savings.png` (Savings Planner & Goals) |
+| **Screenshot 5** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_5_settings.png` (Settings & Biometric Lock) |
+| **Screenshot 6** | Phone Screenshot (1080 × 2340) | `play_store_assets/screenshot_6_occasions.png` (Occasions & Trips Tracker) |
 
 ---
 
