@@ -12,6 +12,7 @@ import '../../categories/category_management_sheet.dart';
 class AddTransactionSheet extends StatefulWidget {
   final TransactionRepository repository;
   final Transaction? existingTransaction;
+  final String initialType;
   final VoidCallback? onAdded;
   final VoidCallback? onDeleted;
 
@@ -19,6 +20,7 @@ class AddTransactionSheet extends StatefulWidget {
     super.key,
     required this.repository,
     this.existingTransaction,
+    this.initialType = 'expense',
     this.onAdded,
     this.onDeleted,
   });
@@ -27,6 +29,7 @@ class AddTransactionSheet extends StatefulWidget {
     BuildContext context,
     TransactionRepository repository, {
     VoidCallback? onAdded,
+    String initialType = 'expense',
   }) {
     return showModalBottomSheet(
       context: context,
@@ -35,6 +38,7 @@ class AddTransactionSheet extends StatefulWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) => AddTransactionSheet(
         repository: repository,
+        initialType: initialType,
         onAdded: onAdded,
       ),
     );
@@ -93,7 +97,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       _selectedOccasionId = tx.occasionId;
       _noteController.text = tx.note ?? '';
     } else {
-      _type = 'expense';
+      _type = widget.initialType;
       _selectedDate = DateTime.now();
     }
     _loadCategories();

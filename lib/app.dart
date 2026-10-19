@@ -11,6 +11,10 @@ import 'features/savings/savings_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/security/lock_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'core/theme/app_colors.dart';
+import 'features/budget/set_budget_sheet.dart';
+import 'features/savings/add_savings_goal_sheet.dart';
+import 'shared/widgets/speed_dial_fab.dart';
 
 class MainShell extends StatefulWidget {
   final TransactionRepository repository;
@@ -139,13 +143,52 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ),
             ],
           ),
-          floatingActionButton: _currentIndex == 1
-              ? FloatingActionButton(
-                  onPressed: () {
-                    HapticFeedback.mediumImpact();
-                    AddTransactionSheet.show(context, widget.repository);
-                  },
-                  child: const Icon(Icons.add_rounded, size: 28),
+          floatingActionButton: _currentIndex < 4
+              ? SpeedDialFab(
+                  actions: [
+                    SpeedDialAction(
+                      icon: Icons.trending_down_rounded,
+                      label: 'Add Expense',
+                      subtitle: 'Log daily spending',
+                      color: AppColors.expense,
+                      onTap: () => AddTransactionSheet.show(
+                        context,
+                        widget.repository,
+                        initialType: 'expense',
+                      ),
+                    ),
+                    SpeedDialAction(
+                      icon: Icons.trending_up_rounded,
+                      label: 'Add Income',
+                      subtitle: 'Record earnings',
+                      color: AppColors.income,
+                      onTap: () => AddTransactionSheet.show(
+                        context,
+                        widget.repository,
+                        initialType: 'income',
+                      ),
+                    ),
+                    SpeedDialAction(
+                      icon: Icons.pie_chart_rounded,
+                      label: 'Set Budget',
+                      subtitle: 'Monthly category limit',
+                      color: const Color(0xFF3B82F6),
+                      onTap: () => SetBudgetSheet.show(
+                        context,
+                        widget.repository,
+                      ),
+                    ),
+                    SpeedDialAction(
+                      icon: Icons.savings_rounded,
+                      label: 'Savings Goal',
+                      subtitle: 'Target a new milestone',
+                      color: AppColors.darkPrimary,
+                      onTap: () => AddSavingsGoalSheet.show(
+                        context,
+                        widget.repository,
+                      ),
+                    ),
+                  ],
                 )
               : null,
         );
