@@ -115,6 +115,9 @@ void main() {
       expect(data.budgetStatus, 'On Track');
       expect(data.statusColor, '#10B981');
       expect(data.rawBudgetRemaining, 500.0);
+      expect(data.budgetPercent, 50);
+      expect(data.budgetSpent, contains('500'));
+      expect(data.budgetTotal, contains('1,000'));
       expect(data.footerText, contains('50% budget remaining'));
 
       // Scenario 2: Spent additional 350 (Total 850 / 85% -> Near Limit)
@@ -129,6 +132,7 @@ void main() {
       expect(data.budgetStatus, 'Near Limit');
       expect(data.statusColor, '#F59E0B');
       expect(data.rawBudgetRemaining, 150.0);
+      expect(data.budgetPercent, 85);
       expect(data.footerText, contains('15% budget remaining'));
 
       // Scenario 3: Spent additional 200 (Total 1,050 / 105% -> Over Budget)
@@ -143,6 +147,7 @@ void main() {
       expect(data.budgetStatus, 'Over Budget');
       expect(data.statusColor, '#EF4444');
       expect(data.rawBudgetRemaining, -50.0);
+      expect(data.budgetPercent, 105);
       expect(data.footerText, contains('5% over budget limit'));
     });
 
@@ -162,6 +167,9 @@ void main() {
       expect(args.containsKey('statusColor'), isTrue);
       expect(args.containsKey('lastUpdated'), isTrue);
       expect(args.containsKey('footerText'), isTrue);
+      expect(args.containsKey('budgetSpent'), isTrue);
+      expect(args.containsKey('budgetTotal'), isTrue);
+      expect(args.containsKey('budgetPercent'), isTrue);
     });
 
     test('getInitialRoute returns deep link action route from native', () async {

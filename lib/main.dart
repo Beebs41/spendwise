@@ -50,10 +50,15 @@ class SpendWiseApp extends StatelessWidget {
             darkTheme: AppTheme.darkTheme,
             themeMode: themeMode,
             onGenerateRoute: (settings) {
-              if (settings.name == '/quick_add') {
+              final uri = Uri.tryParse(settings.name ?? '') ?? Uri();
+              if (uri.path == '/quick_add') {
+                final type = uri.queryParameters['type'] ?? 'expense';
                 return PageRouteBuilder(
                   opaque: false,
-                  pageBuilder: (context, _, _) => QuickAddOverlayScreen(repository: repository),
+                  pageBuilder: (context, _, _) => QuickAddOverlayScreen(
+                    repository: repository,
+                    initialType: type,
+                  ),
                   transitionsBuilder: (context, animation, _, child) {
                     return SlideTransition(
                       position: Tween<Offset>(

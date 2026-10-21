@@ -8,8 +8,13 @@ import 'add_transaction_sheet.dart';
 /// the Android Home Screen from the SpendWise AppWidget.
 class QuickAddOverlayScreen extends StatelessWidget {
   final TransactionRepository repository;
+  final String initialType;
 
-  const QuickAddOverlayScreen({super.key, required this.repository});
+  const QuickAddOverlayScreen({
+    super.key,
+    required this.repository,
+    this.initialType = 'expense',
+  });
 
   void _closeOverlay() {
     SystemNavigator.pop();
@@ -48,6 +53,7 @@ class QuickAddOverlayScreen extends StatelessWidget {
                     ),
                     child: AddTransactionSheet(
                       repository: repository,
+                      initialType: initialType,
                       onAdded: () {
                         // Immediately synchronize widget metrics so home screen updates live
                         WidgetSyncService.syncWidget(repository);

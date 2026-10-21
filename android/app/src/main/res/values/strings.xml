@@ -11,4 +11,6 @@
     <string name="widget_status_over_budget">Over Budget</string>
     <string name="widget_status_no_budget">No Budget Set</string>
     <string name="widget_initial_amount">₹ 0.00</string>
+    <string name="widget_quick_add_description">Instant 1-tap +Expense and +Income floating shortcuts.</string>
+    <string name="widget_budget_description">Visual monthly budget burn-down meter with remaining percentage.</string>
 </resources>

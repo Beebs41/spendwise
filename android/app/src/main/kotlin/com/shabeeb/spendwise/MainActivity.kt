@@ -83,11 +83,22 @@ class MainActivity : FlutterFragmentActivity() {
                         args?.get("statusColor")?.let { editor.putString(SpendWiseWidgetProvider.KEY_STATUS_COLOR, it.toString()) }
                         args?.get("lastUpdated")?.let { editor.putString(SpendWiseWidgetProvider.KEY_LAST_UPDATED, it.toString()) }
                         args?.get("footerText")?.let { editor.putString(SpendWiseWidgetProvider.KEY_FOOTER_TEXT, it.toString()) }
+                        args?.get("budgetSpent")?.let { editor.putString(SpendWiseWidgetProvider.KEY_BUDGET_SPENT, it.toString()) }
+                        args?.get("budgetTotal")?.let { editor.putString(SpendWiseWidgetProvider.KEY_BUDGET_TOTAL, it.toString()) }
+                        args?.get("budgetPercent")?.let {
+                            val percent = when (it) {
+                                is Number -> it.toInt()
+                                else -> it.toString().toIntOrNull() ?: 0
+                            }
+                            editor.putInt(SpendWiseWidgetProvider.KEY_BUDGET_PERCENT, percent)
+                        }
 
                         editor.apply()
 
-                        // Push update to all home screen widget instances
+                        // Push update to all home screen widget instances across providers
                         SpendWiseWidgetProvider.updateAllWidgets(applicationContext)
+                        SpendWiseQuickAddWidgetProvider.updateAllWidgets(applicationContext)
+                        SpendWiseBudgetWidgetProvider.updateAllWidgets(applicationContext)
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("UPDATE_ERROR", e.message, null)

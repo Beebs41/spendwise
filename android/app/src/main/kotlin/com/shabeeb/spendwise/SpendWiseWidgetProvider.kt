@@ -20,6 +20,9 @@ class SpendWiseWidgetProvider : AppWidgetProvider() {
         const val KEY_STATUS_COLOR = "status_color"
         const val KEY_LAST_UPDATED = "last_updated"
         const val KEY_FOOTER_TEXT = "footer_text"
+        const val KEY_BUDGET_SPENT = "budget_spent"
+        const val KEY_BUDGET_TOTAL = "budget_total"
+        const val KEY_BUDGET_PERCENT = "budget_percent"
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)

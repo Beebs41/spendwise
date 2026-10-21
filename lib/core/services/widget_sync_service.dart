@@ -12,6 +12,9 @@ class WidgetData {
   final String statusColor;
   final String lastUpdated;
   final String footerText;
+  final String budgetSpent;
+  final String budgetTotal;
+  final int budgetPercent;
   final double rawTodaySpend;
   final double rawBudgetRemaining;
   final double rawMonthBudget;
@@ -23,6 +26,9 @@ class WidgetData {
     required this.statusColor,
     required this.lastUpdated,
     required this.footerText,
+    this.budgetSpent = '₹ 0.00',
+    this.budgetTotal = '₹ 0.00',
+    this.budgetPercent = 0,
     required this.rawTodaySpend,
     required this.rawBudgetRemaining,
     required this.rawMonthBudget,
@@ -35,6 +41,9 @@ class WidgetData {
         'statusColor': statusColor,
         'lastUpdated': lastUpdated,
         'footerText': footerText,
+        'budgetSpent': budgetSpent,
+        'budgetTotal': budgetTotal,
+        'budgetPercent': budgetPercent,
       };
 }
 
@@ -138,6 +147,13 @@ class WidgetSyncService {
     final formattedRemaining = totalBudget > 0
         ? CurrencyFormatter.format(remaining < 0 ? 0 : remaining, symbol: symbol)
         : 'Not Set';
+    final formattedBudgetSpent = CurrencyFormatter.format(monthTotal, symbol: symbol);
+    final formattedBudgetTotal = totalBudget > 0
+        ? CurrencyFormatter.format(totalBudget, symbol: symbol)
+        : 'Not Set';
+    final int calcBudgetPercent = totalBudget > 0
+        ? ((monthTotal / totalBudget) * 100).round()
+        : 0;
     final updatedTime = DateFormat('HH:mm').format(now);
 
     return WidgetData(
@@ -147,6 +163,9 @@ class WidgetSyncService {
       statusColor: statusColor,
       lastUpdated: updatedTime,
       footerText: footerText,
+      budgetSpent: formattedBudgetSpent,
+      budgetTotal: formattedBudgetTotal,
+      budgetPercent: calcBudgetPercent,
       rawTodaySpend: todayTotal,
       rawBudgetRemaining: remaining,
       rawMonthBudget: totalBudget,
