@@ -9,10 +9,14 @@ import '../../data/database/app_database.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../shared/widgets/category_icon.dart';
 import '../../shared/widgets/custom_card.dart';
+import '../../shared/widgets/notification_bell_button.dart';
 import '../debts/debts_screen.dart';
 import '../occasions/occasions_screen.dart';
 import '../reports/whatsapp_reports_sheet.dart';
 import '../transactions/screens/add_transaction_sheet.dart';
+import 'widgets/monthly_insights_card.dart';
+import '../onboarding/widgets/contextual_hint_card.dart';
+import '../onboarding/widgets/app_tour_sheet.dart';
 
 class DashboardScreen extends StatelessWidget {
   final TransactionRepository repository;
@@ -129,6 +133,17 @@ class DashboardScreen extends StatelessWidget {
                       ),
                       Row(
                         children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                              ),
+                              color: isDark ? AppColors.darkCard : AppColors.lightCard,
+                            ),
+                            child: NotificationBellButton(repository: repository),
+                          ),
+                          const SizedBox(width: 8),
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
@@ -362,6 +377,45 @@ class DashboardScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+              ),
+
+              // Helpful Tip / Tour Prompt Card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: ContextualHintCard(
+                    title: '💡 Quick Tip: Daily Trends',
+                    message: 'Tap the "Trend" tab on the Insights card below to view your daily spending sparkline and peak days.',
+                    actionLabel: 'Explore Interactive App Tour',
+                    onAction: () => AppTourSheet.show(context, repository: repository),
+                  ),
+                ),
+              ),
+
+              // Monthly Summary / Financial Intelligence Insights Card
+              SliverToBoxAdapter(
+                child: StreamBuilder<List<TransactionWithCategory>>(
+                  stream: repository.watchTransactionsForMonth(
+                    now.month == 1 ? now.year - 1 : now.year,
+                    now.month == 1 ? 12 : now.month - 1,
+                  ),
+                  builder: (context, prevSnap) {
+                    final prevTransactions = prevSnap.data ?? [];
+                    return StreamBuilder<List<BudgetWithCategory>>(
+                      stream: repository.watchBudgetsForMonth(now.year, now.month),
+                      builder: (context, budgetSnap) {
+                        final budgets = budgetSnap.data ?? [];
+                        return MonthlyInsightsCard(
+                          currentTransactions: transactions,
+                          previousTransactions: prevTransactions,
+                          budgets: budgets,
+                          currentDate: now,
+                          onExploreDetails: onNavigateToBudget,
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
 

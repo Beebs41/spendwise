@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SpendWise</string>
+    <string name="widget_name">SpendWise Quick-Glance</string>
+    <string name="widget_description">Shows today\'s expenses, monthly budget balance, and 1-tap quick expense logging.</string>
+    <string name="widget_today_label">TODAY\'S SPEND</string>
+    <string name="widget_budget_label">BUDGET LEFT</string>
+    <string name="widget_add_expense">+ Add Expense</string>
+    <string name="widget_status_on_track">On Track</string>
+    <string name="widget_status_near_limit">Near Limit</string>
+    <string name="widget_status_over_budget">Over Budget</string>
+    <string name="widget_status_no_budget">No Budget Set</string>
+    <string name="widget_initial_amount">₹ 0.00</string>
+</resources>

@@ -373,26 +373,33 @@ class _CategoryManagementSheetState extends State<CategoryManagementSheet> with 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              height: 42,
+              height: 46,
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkCard : AppColors.lightSurface,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                 ),
               ),
               child: TabBar(
                 controller: _tabController,
+                indicatorSize: TabBarIndicatorSize.tab,
                 indicator: BoxDecoration(
-                  color: isDark ? AppColors.darkPrimary.withValues(alpha: 0.2) : AppColors.lightPrimary.withValues(alpha: 0.15),
+                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
-                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                labelColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                labelColor: Colors.black,
                 unselectedLabelColor: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 dividerColor: Colors.transparent,
                 tabs: const [
                   Tab(text: 'Expenses'),

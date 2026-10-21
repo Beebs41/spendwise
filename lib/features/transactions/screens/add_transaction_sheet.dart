@@ -1,5 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -8,11 +12,15 @@ import '../../../data/repositories/transaction_repository.dart';
 import '../../../shared/widgets/category_icon.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../categories/category_management_sheet.dart';
+import '../widgets/receipt_viewer_dialog.dart';
+import '../../../core/services/recurring_transaction_service.dart';
+import '../../../core/services/currency_service.dart';
 
 class AddTransactionSheet extends StatefulWidget {
   final TransactionRepository repository;
   final Transaction? existingTransaction;
   final String initialType;
+  final int? initialOccasionId;
   final VoidCallback? onAdded;
   final VoidCallback? onDeleted;
 
@@ -21,6 +29,7 @@ class AddTransactionSheet extends StatefulWidget {
     required this.repository,
     this.existingTransaction,
     this.initialType = 'expense',
+    this.initialOccasionId,
     this.onAdded,
     this.onDeleted,
   });
@@ -30,6 +39,7 @@ class AddTransactionSheet extends StatefulWidget {
     TransactionRepository repository, {
     VoidCallback? onAdded,
     String initialType = 'expense',
+    int? initialOccasionId,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -39,6 +49,7 @@ class AddTransactionSheet extends StatefulWidget {
       builder: (ctx) => AddTransactionSheet(
         repository: repository,
         initialType: initialType,
+        initialOccasionId: initialOccasionId,
         onAdded: onAdded,
       ),
     );
@@ -77,7 +88,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   late DateTime _selectedDate;
   int? _selectedCategoryId;
   int? _selectedOccasionId;
+  String? _receiptPath;
+  bool _isRecurring = false;
+  String _recurringFrequency = 'monthly';
   bool _isSaving = false;
+
+  late String _selectedCurrency;
+  late double _exchangeRate;
 
   List<Category> _categories = [];
   List<Occasion> _occasions = [];
@@ -91,14 +108,27 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final tx = widget.existingTransaction;
     if (tx != null) {
       _type = tx.type;
-      _amountController.text = tx.amount % 1 == 0 ? tx.amount.toInt().toString() : tx.amount.toStringAsFixed(2);
+      _selectedCurrency = tx.originalCurrency ?? CurrencyFormatter.activeCode;
+      _exchangeRate = tx.exchangeRate ?? CurrencyService.getApproxExchangeRate(_selectedCurrency, CurrencyFormatter.activeCode);
+      if (tx.originalAmount != null && tx.originalCurrency != null && tx.originalCurrency != CurrencyFormatter.activeCode) {
+        _amountController.text = tx.originalAmount! % 1 == 0
+            ? tx.originalAmount!.toInt().toString()
+            : tx.originalAmount!.toStringAsFixed(2);
+      } else {
+        _amountController.text = tx.amount % 1 == 0 ? tx.amount.toInt().toString() : tx.amount.toStringAsFixed(2);
+      }
       _selectedDate = tx.date;
       _selectedCategoryId = tx.categoryId;
       _selectedOccasionId = tx.occasionId;
+      _receiptPath = tx.receiptPath;
+      _isRecurring = tx.isRecurring;
       _noteController.text = tx.note ?? '';
     } else {
       _type = widget.initialType;
       _selectedDate = DateTime.now();
+      _selectedOccasionId = widget.initialOccasionId;
+      _selectedCurrency = CurrencyFormatter.activeCode;
+      _exchangeRate = 1.0;
     }
     _loadCategories();
   }
@@ -114,8 +144,226 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         if (_selectedCategoryId == null) {
           _setDefaultCategory();
         }
+        if (_selectedOccasionId != null && _selectedCurrency == CurrencyFormatter.activeCode) {
+          final matchedOcc = _occasions.where((o) => o.id == _selectedOccasionId).firstOrNull;
+          if (matchedOcc != null && matchedOcc.currencyCode != null && matchedOcc.currencyCode!.isNotEmpty) {
+            _selectedCurrency = matchedOcc.currencyCode!;
+            _exchangeRate = CurrencyService.getApproxExchangeRate(_selectedCurrency, CurrencyFormatter.activeCode);
+          }
+        }
       });
     }
+  }
+
+  void _showCurrencyPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightCard,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select Transaction Currency',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: CurrencyService.supportedCurrencies.length,
+                  separatorBuilder: (_, _) => Divider(
+                    height: 1,
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                  itemBuilder: (context, index) {
+                    final curr = CurrencyService.supportedCurrencies[index];
+                    final isSelected = curr.code == _selectedCurrency;
+                    final isBase = curr.code == CurrencyFormatter.activeCode;
+
+                    return ListTile(
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          curr.flagEmoji,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Text(curr.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (isBase) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'BASE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text('${curr.code} (${curr.symbol})'),
+                      trailing: isSelected
+                          ? Icon(Icons.check_circle_rounded,
+                              color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                          : null,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _selectedCurrency = curr.code;
+                          _exchangeRate = CurrencyService.getApproxExchangeRate(
+                            _selectedCurrency,
+                            CurrencyFormatter.activeCode,
+                          );
+                        });
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAdjustRateDialog() {
+    final rateCtrl = TextEditingController(
+      text: _exchangeRate % 1 == 0 ? _exchangeRate.toInt().toString() : _exchangeRate.toStringAsFixed(4),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Adjust Exchange Rate',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '1 $_selectedCurrency = X ${CurrencyFormatter.activeCode} (${CurrencyFormatter.activeSymbol})',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rateCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Exchange Rate',
+                hintText: 'e.g. 84.25',
+                prefixIcon: const Icon(Icons.currency_exchange_rounded),
+                suffixText: CurrencyFormatter.activeCode,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Customize the exact rate used for this transaction if your bank or card applied a specific conversion rate.',
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final defaultRate = CurrencyService.getApproxExchangeRate(
+                _selectedCurrency,
+                CurrencyFormatter.activeCode,
+              );
+              rateCtrl.text = defaultRate % 1 == 0 ? defaultRate.toInt().toString() : defaultRate.toStringAsFixed(4);
+            },
+            child: const Text('Reset Default'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newRate = double.tryParse(rateCtrl.text.trim());
+              if (newRate != null && newRate > 0) {
+                HapticFeedback.selectionClick();
+                setState(() => _exchangeRate = newRate);
+                Navigator.pop(dialogCtx);
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _setDefaultCategory() {
@@ -162,8 +410,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Future<void> _save() async {
-    final amount = double.tryParse(_amountController.text);
-    if (amount == null || amount <= 0 || _selectedCategoryId == null) {
+    final enteredAmount = double.tryParse(_amountController.text);
+    if (enteredAmount == null || enteredAmount <= 0 || _selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid amount and category')),
       );
@@ -172,6 +420,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
     setState(() => _isSaving = true);
     HapticFeedback.mediumImpact();
+
+    final isForeign = _selectedCurrency != CurrencyFormatter.activeCode;
+    final baseAmount = isForeign ? enteredAmount * _exchangeRate : enteredAmount;
+    final origAmount = isForeign ? enteredAmount : null;
+    final origCurr = isForeign ? _selectedCurrency : null;
+    final rate = isForeign ? _exchangeRate : null;
 
     String? note = _noteController.text.trim();
     if (_isOtherCategorySelected() && _otherSpecificController.text.trim().isNotEmpty) {
@@ -183,21 +437,47 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       await widget.repository.updateTransaction(
         id: widget.existingTransaction!.id,
         type: _type,
-        amount: amount,
+        amount: baseAmount,
         categoryId: _selectedCategoryId!,
         date: _selectedDate,
         note: note.isEmpty ? null : note,
+        isRecurring: _isRecurring,
         occasionId: _type == 'expense' ? _selectedOccasionId : null,
+        receiptPath: _receiptPath,
+        originalAmount: origAmount,
+        originalCurrency: origCurr,
+        exchangeRate: rate,
       );
     } else {
       await widget.repository.addTransaction(
         type: _type,
-        amount: amount,
+        amount: baseAmount,
         categoryId: _selectedCategoryId!,
         date: _selectedDate,
         note: note.isEmpty ? null : note,
+        isRecurring: _isRecurring,
         occasionId: _type == 'expense' ? _selectedOccasionId : null,
+        receiptPath: _receiptPath,
+        originalAmount: origAmount,
+        originalCurrency: origCurr,
+        exchangeRate: rate,
       );
+
+      if (_isRecurring) {
+        final nextDue = RecurringTransactionService.calculateNextDueDate(_selectedDate, _recurringFrequency);
+        await widget.repository.addRecurringTransaction(
+          type: _type,
+          amount: baseAmount,
+          categoryId: _selectedCategoryId!,
+          frequency: _recurringFrequency,
+          startDate: _selectedDate,
+          nextDueDate: nextDue,
+          lastGeneratedDate: _selectedDate,
+          note: note.isEmpty ? null : note,
+          occasionId: _type == 'expense' ? _selectedOccasionId : null,
+          receiptPath: _receiptPath,
+        );
+      }
     }
 
     if (mounted) {
@@ -237,12 +517,435 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
   }
 
+  Future<void> _pickReceipt(ImageSource source) async {
+    HapticFeedback.selectionClick();
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final receiptsDir = Directory(p.join(appDir.path, 'receipts'));
+      if (!await receiptsDir.exists()) {
+        await receiptsDir.create(recursive: true);
+      }
+      final ext = p.extension(picked.path).isEmpty ? '.jpg' : p.extension(picked.path);
+      final uniqueName = 'receipt_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final savedFile = await File(picked.path).copy(p.join(receiptsDir.path, uniqueName));
+
+      setState(() {
+        _receiptPath = savedFile.path;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to attach receipt: $e')),
+        );
+      }
+    }
+  }
+
+  void _removeReceipt() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _receiptPath = null;
+    });
+  }
+
+  Widget _buildReceiptAttachmentSection(bool isDark) {
+    final hasReceipt = _receiptPath != null && _receiptPath!.isNotEmpty;
+    final file = hasReceipt ? File(_receiptPath!) : null;
+    final fileExists = file?.existsSync() ?? false;
+
+    if (!hasReceipt || !fileExists) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : AppColors.lightSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.receipt_long_rounded,
+                size: 18,
+                color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Receipt / Bill',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Attach photo for records',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Camera Button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _pickReceipt(ImageSource.camera),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.camera_alt_outlined,
+                        size: 16,
+                        color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Camera',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            // Gallery Button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _pickReceipt(ImageSource.gallery),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.photo_library_outlined,
+                        size: 16,
+                        color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Gallery',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Thumbnail Preview
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              ReceiptViewerDialog.show(
+                context,
+                imagePath: _receiptPath!,
+                title: 'Attached Receipt',
+                subtitle: _noteController.text.isNotEmpty ? _noteController.text : null,
+              );
+            },
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.file(
+                    file!,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.fullscreen_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Info
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                ReceiptViewerDialog.show(
+                  context,
+                  imagePath: _receiptPath!,
+                  title: 'Attached Receipt',
+                  subtitle: _noteController.text.isNotEmpty ? _noteController.text : null,
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Receipt Attached',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 14,
+                        color: isDark ? AppColors.darkSuccess : AppColors.lightSuccess,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Tap to view in full screen',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Options popup
+          PopupMenuButton<ImageSource>(
+            icon: Icon(
+              Icons.more_vert_rounded,
+              size: 20,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+            tooltip: 'Receipt Options',
+            color: isDark ? AppColors.darkSurface : AppColors.lightCard,
+            onSelected: _pickReceipt,
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: ImageSource.camera,
+                child: Row(
+                  children: [
+                    Icon(Icons.camera_alt_outlined, size: 18),
+                    SizedBox(width: 10),
+                    Text('Retake with Camera', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: ImageSource.gallery,
+                child: Row(
+                  children: [
+                    Icon(Icons.photo_library_outlined, size: 18),
+                    SizedBox(width: 10),
+                    Text('Choose from Gallery', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              size: 20,
+              color: AppColors.darkDanger,
+            ),
+            tooltip: 'Remove Receipt',
+            onPressed: _removeReceipt,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecurringSection(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.autorenew_rounded,
+                  size: 18,
+                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Recurring Transaction',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      _isRecurring
+                          ? 'Repeats ${RecurringTransactionService.formatFrequency(_recurringFrequency).toLowerCase()}'
+                          : 'Auto-generate on schedule',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _isRecurring,
+                onChanged: (val) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _isRecurring = val);
+                },
+                activeThumbColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+              ),
+            ],
+          ),
+          if (_isRecurring) ...[
+            const SizedBox(height: 10),
+            Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildFrequencyChip('daily', 'Daily', isDark),
+                const SizedBox(width: 8),
+                _buildFrequencyChip('weekly', 'Weekly', isDark),
+                const SizedBox(width: 8),
+                _buildFrequencyChip('monthly', 'Monthly', isDark),
+                const SizedBox(width: 8),
+                _buildFrequencyChip('yearly', 'Yearly', isDark),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFrequencyChip(String value, String label, bool isDark) {
+    final isSelected = _recurringFrequency == value;
+    final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _recurringFrequency = value);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? primary : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected
+                  ? Colors.black
+                  : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? AppColors.darkSurface : AppColors.lightCard;
     final filteredCategories = _categories.where((c) => c.isIncome == (_type == 'income')).toList();
-    final curSymbol = CurrencyFormatter.activeSymbol;
+    final currInfo = CurrencyService.getByCodeOrDefault(_selectedCurrency, defaultCode: CurrencyFormatter.activeCode);
+    final curSymbol = currInfo.symbol;
+    final isForeign = _selectedCurrency != CurrencyFormatter.activeCode;
+    final enteredAmount = double.tryParse(_amountController.text) ?? 0.0;
+    final convertedBaseAmount = enteredAmount * _exchangeRate;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -392,52 +1095,149 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              // Large Amount Input
+              // Currency Pill & Large Amount Input
               Center(
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      curSymbol,
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 80, maxWidth: 220),
-                      child: TextField(
-                        controller: _amountController,
-                        autofocus: !_isEditing,
-                        textAlign: TextAlign.start,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: '0',
-                          hintStyle: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary).withValues(alpha: 0.3),
+                    // Currency Selection Pill
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        _showCurrencyPicker();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isForeign
+                              ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.18)
+                              : (isDark ? AppColors.darkCard : AppColors.lightSurface),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isForeign
+                                ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                            width: isForeign ? 1.5 : 1,
                           ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                          filled: false,
                         ),
-                        onChanged: (_) => setState(() {}),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(currInfo.flagEmoji, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${currInfo.code} (${currInfo.symbol})',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isForeign
+                                    ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                                    : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: isForeign
+                                  ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                                  : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          curSymbol,
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 80, maxWidth: 220),
+                          child: TextField(
+                            controller: _amountController,
+                            autofocus: !_isEditing,
+                            textAlign: TextAlign.start,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            style: TextStyle(
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '0',
+                              hintStyle: TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary).withValues(alpha: 0.3),
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              filled: false,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isForeign) ...[
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _showAdjustRateDialog();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.swap_horiz_rounded,
+                                size: 16,
+                                color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '≈ ${CurrencyFormatter.format(convertedBaseAmount)} (1 $_selectedCurrency = ${CurrencyFormatter.activeSymbol}${_exchangeRate.toStringAsFixed(2)})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 13,
+                                color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -740,12 +1540,29 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                         }),
                       ],
                       onChanged: (val) {
-                        setState(() => _selectedOccasionId = val);
+                        setState(() {
+                          _selectedOccasionId = val;
+                          if (val != null) {
+                            final occ = _occasions.where((o) => o.id == val).firstOrNull;
+                            if (occ != null && occ.currencyCode != null && occ.currencyCode!.isNotEmpty && _selectedCurrency == CurrencyFormatter.activeCode) {
+                              _selectedCurrency = occ.currencyCode!;
+                              _exchangeRate = CurrencyService.getApproxExchangeRate(_selectedCurrency, CurrencyFormatter.activeCode);
+                            }
+                          }
+                        });
                       },
                     ),
                   ),
                 ),
               ],
+
+              // Receipt Photo / Attachment
+              const SizedBox(height: 12),
+              _buildReceiptAttachmentSection(isDark),
+
+              // Recurring Transaction Section
+              const SizedBox(height: 12),
+              _buildRecurringSection(isDark),
               const SizedBox(height: 24),
 
               // Save Action Button

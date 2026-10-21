@@ -20,6 +20,13 @@ import '../occasions/occasions_screen.dart';
 import '../reports/whatsapp_reports_sheet.dart';
 import '../security/lock_screen.dart';
 import 'bloc/theme_cubit.dart';
+import '../../core/services/backup_restore_service.dart';
+import 'widgets/restore_backup_sheet.dart';
+import '../recurring/screens/recurring_transactions_screen.dart';
+import '../notifications/screens/notifications_sheet.dart';
+import '../../core/services/notification_service.dart';
+import '../onboarding/widgets/app_tour_sheet.dart';
+import 'widgets/home_screen_widget_card.dart';
 
 class SettingsScreen extends StatelessWidget {
   final TransactionRepository repository;
@@ -482,6 +489,75 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _createBackup(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('Generating complete SpendWise backup...'),
+          ],
+        ),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    try {
+      await BackupRestoreService.shareBackupFile(context, repository);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create backup: $e'),
+            backgroundColor: AppColors.darkDanger,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreBackup(BuildContext context) async {
+    HapticFeedback.selectionClick();
+    try {
+      final inspection = await BackupRestoreService.pickAndInspectBackupFile();
+      if (inspection == null) return; // User cancelled
+
+      if (!context.mounted) return;
+      final restored = await RestoreBackupSheet.show(context, repository, inspection);
+
+      if (restored == true && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Database restored successfully! 🎉'),
+              ],
+            ),
+            backgroundColor: AppColors.darkSuccess,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore error: $e'),
+            backgroundColor: AppColors.darkDanger,
+          ),
+        );
+      }
+    }
+  }
+
   void _showDetailedAboutDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -675,9 +751,14 @@ class SettingsScreen extends StatelessWidget {
               userName: 'Shabeeb Aslam',
               currencyCode: 'INR',
               currencySymbol: '₹',
+              themeMode: 'system',
               isLockEnabled: false,
               useBiometrics: false,
               isOnboarded: true,
+              enableBudgetAlerts: true,
+              enableDebtReminders: true,
+              enableSavingsAlerts: true,
+              hasSeenAppTour: false,
             );
 
         // Keep CurrencyFormatter in sync
@@ -780,47 +861,147 @@ class SettingsScreen extends StatelessWidget {
                         MaterialPageRoute(builder: (_) => DebtsScreen(repository: repository)),
                       ),
                     ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.autorenew_rounded),
+                      title: const Text('Recurring Transactions & Subscriptions', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Automate rent, bills, salary, and recurring expenses', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => RecurringTransactionsScreen(repository: repository)),
+                      ),
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    ListTile(
+                      leading: Icon(Icons.auto_stories_outlined, color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary),
+                      title: const Text('App Tour & Feature Guide', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Replay interactive walkthrough of all 5 tabs and key tools', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => AppTourSheet.show(context, repository: repository),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
 
+              // Home Screen Widget Section
+              _SectionHeader(title: 'HOME SCREEN WIDGET'),
+              HomeScreenWidgetCard(repository: repository),
+              const SizedBox(height: 24),
+
               // Appearance Section
               _SectionHeader(title: 'APPEARANCE'),
               CustomCard(
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.all(16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SwitchListTile.adaptive(
-                      secondary: Icon(
-                        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                        color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
-                      ),
-                      title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        isDark ? 'Luxury Dark Theme' : 'Clean Warm Light Theme',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              themeCubit.state == ThemeMode.system
+                                  ? Icons.brightness_auto_rounded
+                                  : themeCubit.state == ThemeMode.dark
+                                      ? Icons.dark_mode_rounded
+                                      : Icons.light_mode_rounded,
+                              size: 20,
+                              color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Theme Mode',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                          ],
                         ),
-                      ),
-                      value: themeCubit.state == ThemeMode.dark,
-                      activeTrackColor: AppColors.darkPrimary,
-                      onChanged: (isDarkTheme) {
-                        HapticFeedback.selectionClick();
-                        themeCubit.toggleTheme();
-                      },
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            themeCubit.state == ThemeMode.system
+                                ? 'System Auto'
+                                : themeCubit.state == ThemeMode.dark
+                                    ? 'Dark'
+                                    : 'Light',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 14),
+                    // 3-way segment buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ThemeOptionTile(
+                            title: 'System',
+                            subtitle: 'Auto switch',
+                            icon: Icons.brightness_auto_rounded,
+                            isSelected: themeCubit.state == ThemeMode.system,
+                            isDark: isDark,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              themeCubit.setTheme(ThemeMode.system);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ThemeOptionTile(
+                            title: 'Dark',
+                            subtitle: 'Luxury obsidian',
+                            icon: Icons.dark_mode_rounded,
+                            isSelected: themeCubit.state == ThemeMode.dark,
+                            isDark: isDark,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              themeCubit.setTheme(ThemeMode.dark);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ThemeOptionTile(
+                            title: 'Light',
+                            subtitle: 'Warm clean',
+                            icon: Icons.light_mode_rounded,
+                            isSelected: themeCubit.state == ThemeMode.light,
+                            isDark: isDark,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              themeCubit.setTheme(ThemeMode.light);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.currency_exchange_rounded),
-                      title: const Text('Default Currency', style: TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        '${settings.currencyCode} (${settings.currencySymbol})',
-                        style: const TextStyle(fontSize: 12),
+                    const SizedBox(height: 4),
+                    Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.currency_exchange_rounded),
+                        title: const Text('Default Currency', style: TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(
+                          '${settings.currencyCode} (${settings.currencySymbol})',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _showCurrencyPicker(context, settings),
                       ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => _showCurrencyPicker(context, settings),
                     ),
                   ],
                 ),
@@ -834,14 +1015,26 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     SwitchListTile.adaptive(
-                      secondary: const Icon(Icons.lock_outline_rounded),
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.lock_outline_rounded,
+                          color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                          size: 20,
+                        ),
+                      ),
                       title: const Text('Passcode App Lock', style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(
                         settings.isLockEnabled ? 'App is protected by 4-digit PIN' : 'Disabled',
                         style: const TextStyle(fontSize: 12),
                       ),
                       value: settings.isLockEnabled,
-                      activeTrackColor: AppColors.darkPrimary,
+                      activeTrackColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      activeThumbColor: Colors.white,
                       onChanged: (enabled) async {
                         HapticFeedback.selectionClick();
                         if (enabled) {
@@ -874,11 +1067,23 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
                       SwitchListTile.adaptive(
-                        secondary: const Icon(Icons.fingerprint_rounded),
+                        secondary: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.fingerprint_rounded,
+                            color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                            size: 20,
+                          ),
+                        ),
                         title: const Text('Biometric Unlock', style: TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: const Text('Use fingerprint or face recognition', style: TextStyle(fontSize: 12)),
                         value: settings.useBiometrics,
-                        activeTrackColor: AppColors.darkPrimary,
+                        activeTrackColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                        activeThumbColor: Colors.white,
                         onChanged: (enabled) async {
                           HapticFeedback.selectionClick();
                           if (enabled) {
@@ -923,28 +1128,218 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Data & Sharing
-              _SectionHeader(title: 'DATA & SHARING'),
+              // Notifications & Reminders
+              _SectionHeader(title: 'NOTIFICATIONS & REMINDERS'),
               CustomCard(
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: [
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.notifications_active_outlined,
+                          color: Color(0xFF3B82F6),
+                          size: 20,
+                        ),
+                      ),
+                      title: const Text('Notifications Center', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('View financial alerts, warnings, and milestone celebrations', style: TextStyle(fontSize: 12)),
+                      trailing: StreamBuilder<int>(
+                        stream: repository.watchUnreadNotificationCount(),
+                        builder: (context, snap) {
+                          final count = snap.data ?? 0;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (count > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.darkDanger,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$count new',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              const Icon(Icons.chevron_right_rounded),
+                            ],
+                          );
+                        },
+                      ),
+                      onTap: () => NotificationsSheet.show(context, repository: repository),
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    SwitchListTile.adaptive(
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 20),
+                      ),
+                      title: const Text('Budget Limit Alerts', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Notify when category spending reaches 80% and 100%', style: TextStyle(fontSize: 12)),
+                      value: settings.enableBudgetAlerts,
+                      activeTrackColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      activeThumbColor: Colors.white,
+                      onChanged: (enabled) async {
+                        HapticFeedback.selectionClick();
+                        await repository.saveUserSettings(
+                          settings.toCompanion(true).copyWith(
+                                enableBudgetAlerts: drift.Value(enabled),
+                              ),
+                        );
+                      },
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    SwitchListTile.adaptive(
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.event_outlined, color: Color(0xFFEF4444), size: 20),
+                      ),
+                      title: const Text('Debt Due Date Reminders', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Remind you of debts due today or upcoming in 1–3 days', style: TextStyle(fontSize: 12)),
+                      value: settings.enableDebtReminders,
+                      activeTrackColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      activeThumbColor: Colors.white,
+                      onChanged: (enabled) async {
+                        HapticFeedback.selectionClick();
+                        await repository.saveUserSettings(
+                          settings.toCompanion(true).copyWith(
+                                enableDebtReminders: drift.Value(enabled),
+                              ),
+                        );
+                      },
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    SwitchListTile.adaptive(
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.emoji_events_outlined, color: Color(0xFF10B981), size: 20),
+                      ),
+                      title: const Text('Savings Milestone Celebrations', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Celebrate reaching 50%, 80%, and 100% of your savings goals', style: TextStyle(fontSize: 12)),
+                      value: settings.enableSavingsAlerts,
+                      activeTrackColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      activeThumbColor: Colors.white,
+                      onChanged: (enabled) async {
+                        HapticFeedback.selectionClick();
+                        await repository.saveUserSettings(
+                          settings.toCompanion(true).copyWith(
+                                enableSavingsAlerts: drift.Value(enabled),
+                              ),
+                        );
+                      },
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.send_rounded,
+                          color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                          size: 20,
+                        ),
+                      ),
+                      title: const Text('Send Test Notification', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Verify that system notifications are working properly', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        HapticFeedback.mediumImpact();
+                        await NotificationService.instance.requestPermissions();
+                        await NotificationService.instance.showNotification(
+                          id: 9999,
+                          title: 'SpendWise Demo Alert',
+                          body: 'Notifications are active! You will receive budget warnings and milestone reminders.',
+                        );
+                        await repository.addNotification(
+                          type: 'test',
+                          title: 'SpendWise Demo Alert',
+                          message: 'Notifications are active! You will receive budget warnings and milestone reminders.',
+                          icon: '🔔',
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Test notification sent! Check your notification panel.'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Data & Backup
+              _SectionHeader(title: 'BACKUP & DATA MANAGEMENT'),
+              CustomCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(
+                        Icons.cloud_upload_outlined,
+                        color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                      ),
+                      title: const Text('Create Data Backup (.json)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Export all transactions, goals, debts & categories to file/Drive', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.share_rounded),
+                      onTap: () => _createBackup(context),
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    ListTile(
+                      leading: Icon(
+                        Icons.settings_backup_restore_rounded,
+                        color: isDark ? AppColors.darkSuccess : AppColors.lightSuccess,
+                      ),
+                      title: const Text('Restore from Backup', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Import SpendWise JSON backup file to recover records', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _restoreBackup(context),
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.file_download_outlined),
+                      title: const Text('Export Data (CSV Spreadsheet)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Export complete transaction history as spreadsheet CSV', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _exportCSV(context),
+                    ),
+                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
                     ListTile(
                       leading: const Icon(Icons.mark_chat_read_outlined, color: Color(0xFF25D366)),
                       title: const Text('Share Financial Report (WhatsApp)', style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: const Text('Share formatted monthly, category, or trip digests', style: TextStyle(fontSize: 12)),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => WhatsAppReportsSheet.show(context, repository),
-                    ),
-                    Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.file_download_outlined),
-                      title: const Text('Export Data (CSV File)', style: TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: const Text('Export complete transaction history as spreadsheet CSV', style: TextStyle(fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => _exportCSV(context),
                     ),
                     Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, height: 1),
                     ListTile(
@@ -1046,6 +1441,82 @@ class _SectionHeader extends StatelessWidget {
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
           color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeOptionTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ThemeOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.14)
+              : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? activeColor
+                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected
+                  ? activeColor
+                  : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected
+                    ? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)
+                    : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
+                color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+              ),
+            ),
+          ],
         ),
       ),
     );

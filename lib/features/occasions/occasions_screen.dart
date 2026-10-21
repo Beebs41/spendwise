@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:drift/drift.dart' as drift;
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/services/currency_service.dart';
 import '../../data/database/app_database.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../shared/widgets/custom_card.dart';
@@ -44,6 +45,7 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
     );
     final descController = TextEditingController(text: occasion?.description ?? '');
     String selectedEmoji = occasion?.icon ?? '🏖️';
+    String selectedCurrencyCode = occasion?.currencyCode ?? CurrencyFormatter.activeCode;
     DateTime? startDate = occasion?.startDate ?? DateTime.now();
     DateTime? endDate = occasion?.endDate ?? DateTime.now().add(const Duration(days: 3));
 
@@ -158,12 +160,76 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                       ),
                       const SizedBox(height: 14),
 
+                      // Trip Currency Selector
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkCard : AppColors.lightSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                CurrencyService.findByCode(selectedCurrencyCode)?.flagEmoji ?? '🌐',
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Trip Currency',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    '${CurrencyService.findByCode(selectedCurrencyCode)?.name ?? selectedCurrencyCode} ($selectedCurrencyCode)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.arrow_drop_down_rounded),
+                              label: Text(
+                                selectedCurrencyCode,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                ),
+                              ),
+                              onPressed: () {
+                                _showOccasionCurrencyPicker(ctx, selectedCurrencyCode, (newCode) {
+                                  setModalState(() => selectedCurrencyCode = newCode);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
                       // Budget
                       TextField(
                         controller: budgetController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: 'Allocated Budget (${CurrencyFormatter.activeSymbol})',
+                          labelText: 'Allocated Budget (${CurrencyService.findByCode(selectedCurrencyCode)?.symbol ?? CurrencyFormatter.activeSymbol})',
                           hintText: 'e.g. 25000',
                           prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
                         ),
@@ -250,6 +316,7 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                                     description: drift.Value(descController.text.trim().isEmpty ? null : descController.text.trim()),
                                     startDate: drift.Value(startDate),
                                     endDate: drift.Value(endDate),
+                                    currencyCode: drift.Value(selectedCurrencyCode),
                                   ),
                             );
                           } else {
@@ -260,6 +327,7 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                               description: descController.text.trim().isEmpty ? null : descController.text.trim(),
                               startDate: startDate,
                               endDate: endDate,
+                              currencyCode: selectedCurrencyCode,
                             );
                           }
 
@@ -282,6 +350,128 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showOccasionCurrencyPicker(
+    BuildContext context,
+    String currentCode,
+    ValueChanged<String> onSelected,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightCard,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select Trip / Occasion Currency',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: CurrencyService.supportedCurrencies.length,
+                  separatorBuilder: (_, _) => Divider(
+                    height: 1,
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                  itemBuilder: (context, index) {
+                    final curr = CurrencyService.supportedCurrencies[index];
+                    final isSelected = curr.code == currentCode;
+                    final isBase = curr.code == CurrencyFormatter.activeCode;
+
+                    return ListTile(
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          curr.flagEmoji,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Text(curr.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (isBase) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'BASE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text('${curr.code} (${curr.symbol})'),
+                      trailing: isSelected
+                          ? Icon(Icons.check_circle_rounded,
+                              color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                          : null,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onSelected(curr.code);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -401,9 +591,36 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                occasion.name,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      occasion.name,
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  if (occasion.currencyCode != null && occasion.currencyCode != CurrencyFormatter.activeCode) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.18),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.4),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${CurrencyService.findByCode(occasion.currencyCode!)?.flagEmoji ?? '🌐'} ${occasion.currencyCode}',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               if (occasion.description != null)
                                 Text(
@@ -527,6 +744,7 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                               AddTransactionSheet.show(
                                 context,
                                 widget.repository,
+                                initialOccasionId: occasion.id,
                               );
                             },
                             style: FilledButton.styleFrom(
@@ -624,13 +842,29 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                                         ],
                                       ),
                                     ),
-                                    Text(
-                                      CurrencyFormatter.format(item.transaction.amount),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: isDark ? AppColors.darkDanger : AppColors.lightDanger,
-                                      ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          CurrencyFormatter.format(item.transaction.amount),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: isDark ? AppColors.darkDanger : AppColors.lightDanger,
+                                          ),
+                                        ),
+                                        if (item.transaction.originalCurrency != null &&
+                                            item.transaction.originalCurrency != CurrencyFormatter.activeCode &&
+                                            item.transaction.originalAmount != null)
+                                          Text(
+                                            '(${CurrencyService.findByCode(item.transaction.originalCurrency!)?.symbol ?? ''}${item.transaction.originalAmount!.toStringAsFixed(2)})',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -787,6 +1021,27 @@ class _OccasionsScreenState extends State<OccasionsScreen> {
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
+                                            if (occasion.currencyCode != null && occasion.currencyCode != CurrencyFormatter.activeCode) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.18),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: (isDark ? AppColors.darkPrimary : AppColors.lightPrimary).withValues(alpha: 0.35),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '${CurrencyService.findByCode(occasion.currencyCode!)?.flagEmoji ?? '🌐'} ${occasion.currencyCode}',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                             if (occasion.isCompleted) ...[
                                               const SizedBox(width: 6),
                                               Container(

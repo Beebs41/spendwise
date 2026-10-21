@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/utils/currency_formatter.dart';
@@ -11,9 +12,15 @@ import 'features/savings/savings_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/security/lock_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/onboarding/widgets/app_tour_sheet.dart';
+import 'core/services/recurring_transaction_service.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/reminder_engine.dart';
+import 'core/services/widget_sync_service.dart';
 import 'core/theme/app_colors.dart';
 import 'features/budget/set_budget_sheet.dart';
 import 'features/savings/add_savings_goal_sheet.dart';
+import 'features/savings/add_wishlist_item_sheet.dart';
 import 'shared/widgets/speed_dial_fab.dart';
 
 class MainShell extends StatefulWidget {
@@ -28,26 +35,119 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _isUnlocked = false;
+  bool _hasPromptedTour = false;
+  StreamSubscription<String>? _widgetActionSub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetSyncService.initialize();
+    _widgetActionSub = WidgetSyncService.onWidgetAction.listen(_handleWidgetAction);
+    _initAppServices();
+    _checkInitialWidgetRoute();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _widgetActionSub?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.resumed) {
+      _checkRecurringTransactions();
+      _checkDueDebts();
+      WidgetSyncService.syncWidget(widget.repository);
+    } else if (state == AppLifecycleState.paused) {
       setState(() {
         _isUnlocked = false;
       });
     }
+  }
+
+  Future<void> _checkInitialWidgetRoute() async {
+    try {
+      final route = await WidgetSyncService.getInitialRoute();
+      if (route != null && route.isNotEmpty) {
+        _handleWidgetAction(route);
+      }
+    } catch (_) {}
+  }
+
+  void _handleWidgetAction(String route) {
+    if (route == '/add_transaction') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => AddTransactionSheet(repository: widget.repository),
+          );
+        }
+      });
+    } else if (route == '/dashboard') {
+      if (mounted) {
+        setState(() => _currentIndex = 0);
+      }
+    }
+  }
+
+  Future<void> _initAppServices() async {
+    try {
+      await NotificationService.instance.initialize();
+      await _checkRecurringTransactions();
+      await _checkDueDebts();
+      await WidgetSyncService.syncWidget(widget.repository);
+    } catch (_) {}
+  }
+
+  Future<void> _checkDueDebts() async {
+    try {
+      final settings = await widget.repository.getUserSettings();
+      await ReminderEngine.checkDueDebts(
+        repository: widget.repository,
+        currencySymbol: settings?.currencySymbol ?? '₹',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _checkRecurringTransactions() async {
+    try {
+      final count = await RecurringTransactionService.checkAndGenerateDueTransactions(
+        widget.repository,
+      );
+      if (count > 0) {
+        await ReminderEngine.notifyRecurringGenerated(
+          repository: widget.repository,
+          count: count,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.autorenew_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '$count recurring transaction${count > 1 ? 's' : ''} auto-generated',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (_) {}
   }
 
   void _onTabSelected(int index) {
@@ -93,6 +193,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               });
             },
           );
+        }
+
+        // Auto-launch guided tour for new users after onboarding completion
+        if (settings != null && settings.isOnboarded && !settings.hasSeenAppTour && !_hasPromptedTour) {
+          _hasPromptedTour = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              AppTourSheet.show(
+                context,
+                repository: widget.repository,
+                onSwitchTab: (tabIndex) => setState(() => _currentIndex = tabIndex),
+              );
+            }
+          });
         }
 
         final screens = [
@@ -184,6 +298,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       subtitle: 'Target a new milestone',
                       color: AppColors.darkPrimary,
                       onTap: () => AddSavingsGoalSheet.show(
+                        context,
+                        widget.repository,
+                      ),
+                    ),
+                    SpeedDialAction(
+                      icon: Icons.shopping_bag_outlined,
+                      label: 'Wishlist Item',
+                      subtitle: 'Plan a purchase',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () => AddWishlistItemSheet.show(
                         context,
                         widget.repository,
                       ),

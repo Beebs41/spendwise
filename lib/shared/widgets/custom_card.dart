@@ -57,9 +57,12 @@ class CustomCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: Padding(
-          padding: padding ?? const EdgeInsets.all(20),
-          child: child,
+        child: Material(
+          color: Colors.transparent,
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(20),
+            child: child,
+          ),
         ),
       ),
     );
