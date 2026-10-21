@@ -35,6 +35,23 @@
             </intent-filter>
         </activity>
 
+        <!-- SpendWise Floating Quick Add Activity -->
+        <activity
+            android:name=".QuickAddActivity"
+            android:theme="@style/TransparentQuickAddTheme"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="com.shabeeb.spendwise.quickadd"
+            android:windowSoftInputMode="adjustResize"
+            android:hardwareAccelerated="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="spendwise" android:host="quick_add" />
+            </intent-filter>
+        </activity>
+
         <!-- SpendWise Android Home Screen Widget Receiver -->
         <receiver
             android:name=".SpendWiseWidgetProvider"

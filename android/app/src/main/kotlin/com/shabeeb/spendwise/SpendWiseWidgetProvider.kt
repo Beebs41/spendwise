@@ -73,37 +73,69 @@ class SpendWiseWidgetProvider : AppWidgetProvider() {
                 views.setTextColor(R.id.widget_status_badge, Color.parseColor("#10B981"))
             }
 
-            // PendingIntent for main widget click (Open Dashboard)
-            val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            // 1. PendingIntent for main widget / header click (Open Dashboard)
+            val openDashboardIntent = Intent(context, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
                 data = Uri.parse("spendwise://dashboard")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("route", "/dashboard")
             }
-            val openAppPendingIntent = PendingIntent.getActivity(
+            val openDashboardPendingIntent = PendingIntent.getActivity(
                 context,
                 0,
-                openAppIntent,
+                openDashboardIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent)
-            views.setOnClickPendingIntent(R.id.widget_card_today, openAppPendingIntent)
-            views.setOnClickPendingIntent(R.id.widget_card_budget, openAppPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_root, openDashboardPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_header, openDashboardPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_logo, openDashboardPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_title, openDashboardPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_footer, openDashboardPendingIntent)
 
-            // PendingIntent for Quick Add Expense click (+ button)
-            val addExpenseIntent = Intent(context, MainActivity::class.java).apply {
+            // 2. PendingIntent for "Today's Spend" Card click (Open Transactions filtered to Today)
+            val openTodayIntent = Intent(context, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
-                data = Uri.parse("spendwise://add_transaction")
+                data = Uri.parse("spendwise://transactions?filter=today")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("route", "/add_transaction")
+                putExtra("route", "/transactions?filter=today")
             }
-            val addExpensePendingIntent = PendingIntent.getActivity(
+            val openTodayPendingIntent = PendingIntent.getActivity(
                 context,
-                1,
-                addExpenseIntent,
+                2,
+                openTodayIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_btn_add_expense, addExpensePendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_card_today, openTodayPendingIntent)
+
+            // 3. PendingIntent for "Budget Left" Card click (Open Budget screen)
+            val openBudgetIntent = Intent(context, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse("spendwise://budget")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("route", "/budget")
+            }
+            val openBudgetPendingIntent = PendingIntent.getActivity(
+                context,
+                3,
+                openBudgetIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_card_budget, openBudgetPendingIntent)
+
+            // 4. PendingIntent for Quick Add Expense click (+ button) -> Launches Floating QuickAddActivity
+            val quickAddIntent = Intent(context, QuickAddActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse("spendwise://quick_add")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("route", "/quick_add")
+            }
+            val quickAddPendingIntent = PendingIntent.getActivity(
+                context,
+                4,
+                quickAddIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_btn_add_expense, quickAddPendingIntent)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         } catch (e: Exception) {

@@ -93,6 +93,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       if (mounted) {
         setState(() => _currentIndex = 0);
       }
+    } else if (route.startsWith('/transactions')) {
+      if (mounted) {
+        setState(() => _currentIndex = 1);
+      }
+    } else if (route.startsWith('/budget')) {
+      if (mounted) {
+        setState(() => _currentIndex = 2);
+      }
     }
   }
 

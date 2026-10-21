@@ -33,10 +33,13 @@ class MainActivity : FlutterFragmentActivity() {
         if (intent == null) return null
         val uri = intent.data
         if (uri != null && uri.scheme == "spendwise") {
+            val query = if (!uri.query.isNullOrEmpty()) "?${uri.query}" else ""
             return when (uri.host) {
                 "add_transaction" -> "/add_transaction"
                 "dashboard" -> "/dashboard"
-                else -> "/${uri.host}"
+                "budget" -> "/budget"
+                "transactions" -> "/transactions$query"
+                else -> "/${uri.host}$query"
             }
         }
         return intent.getStringExtra("route")
